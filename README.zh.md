@@ -4,6 +4,8 @@
 
 DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
 
+本仓库是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的**下游 fork**，通过 GitHub Releases 发布共享 server 与桌面端 / VS Code 客户端。
+
 它采用**一切皆插件**的架构，并由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://github.com/cordiverse/paper)。
 
 ## 开发者预览
@@ -12,27 +14,43 @@ DeepSeek Harness 目前处于 _开发者预览_ 阶段，正在快速迭代。**
 
 ## 运行
 
-### 通过 `npm` 运行
+### 下载客户端包
 
-安装 `Node.js`，然后运行：
+共享 server 与客户端通过 [GitHub Releases](https://github.com/kuaizhongqiang/deepseek-harness/releases) 发布：
+
+- **dsh-desktop**：Windows / macOS / Linux 安装包。桌面端内置 server CLI，共享 server 会自动启动。
+- **dsh-vscode**：VS Code 扩展（`.vsix`），要求 `dsh` CLI 位于你的 `PATH`。
+- **dsh-server**：便携 server 压缩包；运行 `node dsh-cli/bin.js --profile server`。
+
+### 启动共享 server
+
+启动 server（仅限本机回环），然后打开打印的 URL：
 
 ```sh
-npx @deepseek-ai/dsh web
+node dsh-cli/bin.js --profile server
 ```
 
-该命令会启动 Web UI，默认地址为 `http://127.0.0.1:3080`。详见 [Web UI 指南](docs/user/guide/index.md)。
+server 绑定 `127.0.0.1`，写入 `~/.dsh/web.lock`，并向桌面端与 VS Code 客户端提供 Web UI 和 API。
 
 ### 从源码运行
 
 如需从仓库源码运行：
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
+git clone https://github.com/kuaizhongqiang/deepseek-harness.git
 cd deepseek-harness
 pnpm install
 pnpm run build
+pnpm dsh --profile server
+```
+
+### 单独运行 Web UI
+
+```sh
 pnpm dsh web
 ```
+
+在 `http://127.0.0.1:3080` 提供 Web UI。详见 [Web UI 指南](docs/user/guide/index.md)。
 
 ## 社区与支持
 

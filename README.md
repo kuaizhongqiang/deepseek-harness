@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 DeepSeek Harness (`dsh`) is an open-source agent harness developed by [DeepSeek AI](https://deepseek.com).
 
+This repository is a **downstream fork** of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness); it ships the shared server and the desktop / VS Code clients through GitHub Releases.
+
 It uses an architecture where **everything is a plugin**, and is powered by [Cordis](https://github.com/cordiverse/cordis), whose design is described in [_A Programming Paradigm for Spatiotemporal Composability_](https://github.com/cordiverse/paper).
 
 ## Developer preview
@@ -12,27 +14,43 @@ DeepSeek Harness is currently in _developer preview_ and is iterating rapidly. *
 
 ## Run
 
-### Run from `npm`
+### Download the client packages
 
-Install `Node.js`, then run:
+The shared server and clients ship as [GitHub Releases](https://github.com/kuaizhongqiang/deepseek-harness/releases):
+
+- **dsh-desktop** — installers for Windows, macOS, and Linux. The desktop app bundles the server CLI, and the shared server starts automatically.
+- **dsh-vscode** — a VS Code extension (`.vsix`). Requires the `dsh` CLI on your `PATH`.
+- **dsh-server** — a portable server tarball; run `node dsh-cli/bin.js --profile server`.
+
+### Start the shared server
+
+Start the server (loopback only), then open the printed URL:
 
 ```sh
-npx @deepseek-ai/dsh web
+node dsh-cli/bin.js --profile server
 ```
 
-The command starts the Web UI, served at `http://127.0.0.1:3080` by default. See [Web UI guide](docs/user/guide/index.md).
+The server binds to `127.0.0.1`, writes `~/.dsh/web.lock`, and serves the Web UI and API that the desktop and VS Code clients attach to.
 
 ### Run from source
 
 To run from a repository checkout:
 
 ```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
+git clone https://github.com/kuaizhongqiang/deepseek-harness.git
 cd deepseek-harness
 pnpm install
 pnpm run build
+pnpm dsh --profile server
+```
+
+### Run the Web UI alone
+
+```sh
 pnpm dsh web
 ```
+
+Serves the Web UI at `http://127.0.0.1:3080`. See [Web UI guide](docs/user/guide/index.md).
 
 ## Community and support
 
