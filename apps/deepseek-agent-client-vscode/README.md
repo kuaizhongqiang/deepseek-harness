@@ -1,5 +1,7 @@
 # DeepSeek Agent Client for VSCode
 
+English | [中文](README.zh.md)
+
 Full chat panel in the VSCode sidebar, bridged to the shared `dsh` server
 (the "unique server" from `docs/transformation/desktop-and-vscode.md`). The
 webview is fully offline: every RPC and downlink frame flows through
