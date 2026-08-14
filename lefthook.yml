@@ -1,6 +1,9 @@
 # Git hooks (lefthook). Keep these local checkpoints fast; CI owns the full
 # repository-wide gate matrix.
 # Install: `node scripts/install-lefthook.mjs` (runs automatically via postinstall).
+#
+# For local dev speed, disable hooks with `LEFTHOOK=0` in your shell (lefthook's
+# native skip) — never commit `skip: true` here. The gate must stay on in the tree.
 
 pre-commit:
   jobs:
