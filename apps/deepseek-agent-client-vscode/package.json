@@ -40,7 +40,7 @@
   },
   "scripts": {
     "build": "node esbuild.config.mjs",
-    "package": "pnpm run build && vsce package --no-dependencies --out dist"
+    "package": "pnpm exec tsx ../../scripts/package-vscode-extension.ts"
   },
   "files": [
     "dist/extension.js",
