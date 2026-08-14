@@ -38,3 +38,6 @@ apps/web/dist/
 worktrees/
 .agents/worktrees/
 .typert-*/
+
+# Bundled extension build output (vsce packages it; CI rebuilds)
+apps/deepseek-agent-client-vscode/dist/

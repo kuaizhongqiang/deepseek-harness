@@ -1,0 +1,63 @@
+{
+  "name": "@deepseek-ai/dsh-deepseek-agent-client-vscode",
+  "displayName": "DeepSeek Agent Client for VSCode",
+  "description": "Full chat panel in the sidebar, bridged to the shared dsh server with native diff/terminal/dialog integration",
+  "version": "0.1.0-rc.5",
+  "publisher": "deepseek-ai",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/extension.js",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "dsh",
+          "title": "DeepSeek Agent Client",
+          "icon": "media/dsh.svg"
+        }
+      ]
+    },
+    "views": {
+      "dsh": [
+        {
+          "type": "webview",
+          "id": "dsh.chat",
+          "name": "Chat"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "dsh.chat.open",
+        "title": "DeepSeek Agent Client: Open Chat"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "package": "pnpm run build && vsce package --no-dependencies --out dist"
+  },
+  "files": [
+    "dist/extension.js",
+    "resources",
+    "media"
+  ],
+  "dependencies": {
+    "@deepseek-ai/dsh-host-apiproxy": "workspace:^",
+    "@deepseek-ai/dsh-server-launcher": "workspace:^",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:^",
+    "@types/vscode": "^1.90.0",
+    "@types/ws": "^8.5.12",
+    "esbuild": "^0.24.0",
+    "typescript": "^6.0.3",
+    "vsce": "^2.15.0"
+  }
+}
