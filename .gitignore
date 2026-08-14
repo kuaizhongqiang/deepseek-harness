@@ -45,3 +45,5 @@ apps/deepseek-agent-client-vscode/dist/
 # Electron app build + packaged output
 apps/deepseek-agent-client-desktop/dist/
 apps/deepseek-agent-client-desktop/release/
+# Bundled dsh CLI closure (built by scripts/build-dsh-cli.ts)
+apps/deepseek-agent-client-desktop/dsh-cli/
