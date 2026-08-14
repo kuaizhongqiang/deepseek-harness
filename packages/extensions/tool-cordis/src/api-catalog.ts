@@ -1006,6 +1006,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'serverSingleInstance',
+    summary: 'The shared-server identity service.',
+    description: 'The shared-server identity service. Its `[Service.init]` runs after the injected web server has bound, so the recorded port is the real one and the Loader settles only once the lock is on disk.',
+    methods: [
+      {
+        signature: 'readonly lockFile: string',
+        description: 'The lock-file path this service manages.',
+        parameters: [],
+      },
+    ],
+  },
+  {
     key: 'sessionPersistence',
     summary: 'Durable append-only session storage.',
     description: 'Durable append-only session storage. Implementations preserve contiguous, losslessly JSON-serializable events; append resolves only after durability, and load balances a complete interrupted tail without rewriting committed events.',
