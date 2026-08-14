@@ -1,0 +1,18 @@
+# The dsh-server-app bundle patch: the shared "server" profile over dsh-web-app.
+# Applied after dsh-base and dsh-web-app; rows here override base rows by id,
+# with the profile's own cordis.patch.yml and any --patch overlays still to come.
+
+# Mount the lock publisher: after the webserver binds, it writes
+# ~/.dsh/web.lock so any client can discover and attach to this server.
+- insert:
+    - id: server-single-instance
+      name: '@deepseek-ai/dsh-server-single-instance'
+
+# The shared server is always loopback-only on an OS-assigned port; the
+# launcher reads the real port back from web.lock after boot. Pinning here
+# (rather than relying on CLI flags) guarantees a dynamic loopback bind
+# whichever way the profile is started.
+- id: webserver
+  config:
+    host: '127.0.0.1'
+    port: 0
