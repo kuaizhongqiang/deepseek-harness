@@ -1,5 +1,7 @@
 # DeepSeek Agent Client Desktop
 
+[English](README.md) | 中文
+
 Electron 壳：懒启动（或 attach）共享 dsh server——见 `docs/transformation/desktop-and-vscode.md`——并直接从 server URL 加载 web UI。由于 renderer 就是 `dsh web` 服务的同一份 SPA，所有 web 功能（会话、模型配置、工具、设置、凭证）零适配可用；原生窗口/托盘/通知能力通过一个最小 preload 桥暴露。
 
 ## Development

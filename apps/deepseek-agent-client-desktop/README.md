@@ -1,5 +1,7 @@
 # DeepSeek Agent Client Desktop
 
+English | [中文](README.zh.md)
+
 An Electron shell that lazily starts (or attaches to) the shared dsh server —
 see `docs/transformation/desktop-and-vscode.md` — and loads the web UI straight
 from the server URL. Because the renderer is the exact SPA `dsh web` serves,
