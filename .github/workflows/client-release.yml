@@ -145,6 +145,11 @@ jobs:
       - name: Install (immutable)
         run: pnpm install --frozen-lockfile
 
+      - name: Build workspace lib
+        # The extension bundles workspace deps (@deepseek-ai/dsh-server-launcher
+        # etc.) by bare specifier; their lib/ must exist for esbuild to resolve.
+        run: pnpm run build:lib
+
       - name: Package vsix (unscoped shim)
         run: pnpm --filter @deepseek-ai/dsh-deepseek-agent-client-vscode run package
 
