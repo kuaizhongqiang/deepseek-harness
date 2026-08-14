@@ -41,3 +41,7 @@ worktrees/
 
 # Bundled extension build output (vsce packages it; CI rebuilds)
 apps/deepseek-agent-client-vscode/dist/
+
+# Electron app build + packaged output
+apps/deepseek-agent-client-desktop/dist/
+apps/deepseek-agent-client-desktop/release/

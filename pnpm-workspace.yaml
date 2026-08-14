@@ -27,6 +27,9 @@ linkWorkspacePackages: true
 overrides:
   '@deepseek-ai/cosmokit': 'link:vendor/cosmokit'
   '@deepseek-ai/schemastery': 'link:vendor/schemastery'
+  # electron declares @types/node ^20.9.0; pin the repo's version so its
+  # presence does not change type resolution for the rest of the workspace.
+  '@types/node': '^22.20.0'
 
 peerDependencyRules:
   allowedVersions:
@@ -56,6 +59,11 @@ allowBuilds:
   # vsce (extension packaging) pulls keytar for Azure token storage; its native
   # build is not needed here, so deny the build script explicitly.
   keytar: false
+  # Desktop packaging: electron-builder runs in CI only; the electron binary
+  # download and electron-builder's native app-builder are not needed for
+  # typecheck/lint here, so deny their build scripts explicitly.
+  electron: false
+  electron-builder: false
 
 minimumReleaseAgeExclude:
   # Fresh pi-ai releases carry the model catalog updates that are the whole

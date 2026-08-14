@@ -1,0 +1,27 @@
+# electron-builder configuration for DeepSeek Agent Client Desktop.
+# The app is a shell over the shared dsh server; the `dsh` CLI is bundled as an
+# extra resource so `ensureServer` can start the server from the packaged app.
+
+appId: com.deepseek.dsh-client-desktop
+productName: DeepSeek Agent Client
+directories:
+  output: release
+files:
+  - dist/**
+  - package.json
+extraResources:
+  - from: dsh-cli
+    to: dsh-cli
+    filter:
+      - "**/*"
+mac:
+  target:
+    - dmg
+  category: public.app-category.developer-tools
+win:
+  target:
+    - nsis
+linux:
+  target:
+    - AppImage
+  category: Development

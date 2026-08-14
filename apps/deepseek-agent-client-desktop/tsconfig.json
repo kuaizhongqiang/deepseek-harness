@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "noEmit": false,
+    "paths": {
+      "electron": ["./node_modules/electron/electron.d.ts"]
+    }
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../packages/server/server-launcher"
+    },
+    {
+      "path": "../../packages/util/home-paths"
+    }
+  ]
+}

@@ -298,6 +298,7 @@
     { "path": "./packages/lsp/lsp-stdio" },
     { "path": "./packages/lsp/tool-lsp" },
     { "path": "./apps/cli" },
-    { "path": "./apps/deepseek-agent-client-vscode" }
+    { "path": "./apps/deepseek-agent-client-vscode" },
+    { "path": "./apps/deepseek-agent-client-desktop" }
   ]
 }

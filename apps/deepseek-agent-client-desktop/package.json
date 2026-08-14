@@ -1,0 +1,23 @@
+{
+  "name": "@deepseek-ai/dsh-deepseek-agent-client-desktop",
+  "description": "DeepSeek Agent Client Desktop: an Electron shell that lazily starts the shared dsh server and loads the web UI from it",
+  "version": "0.1.0-rc.5",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "esbuild src/main.ts src/preload.ts --bundle --platform=node --format=esm --target=node22 --external:electron --outdir=dist --out-extension:.js=.js",
+    "package": "pnpm run build && electron-builder --config electron-builder.yml"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-home-paths": "workspace:^",
+    "@deepseek-ai/dsh-server-launcher": "workspace:^"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "esbuild": "^0.24.0",
+    "typescript": "^6.0.3"
+  }
+}
