@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-server-launcher",
   "description": "Client-side single-server launcher: read the shared web.lock, health-check the recorded server, claim the lock with an exclusive write, spawn a detached server, wait for its publish, and attach",
-  "version": "0.1.0-rc.5",
+  "version": "0.0.2",
   "publishConfig": {
     "access": "public"
   },

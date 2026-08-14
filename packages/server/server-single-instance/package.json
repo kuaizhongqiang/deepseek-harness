@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-server-single-instance",
   "description": "Single-instance server identity: publishes the shared ~/.dsh/web.lock once the web server is listening and removes it on dispose",
-  "version": "0.1.0-rc.5",
+  "version": "0.0.2",
   "publishConfig": {
     "access": "public"
   },
