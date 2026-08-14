@@ -352,6 +352,16 @@ function manualLockRecoveryError(lockPath, condition) {
   )
 }
 
+function sameFileIdentity(left, right) {
+  // On Windows, path-based `stat` reports st_dev=0 while handle-based `fstat`
+  // reports the volume serial number, so a strict dev comparison would
+  // spuriously reject the lock file this process just created. The file index
+  // (ino) is consistent across both APIs, so fall back to ino alone when dev
+  // is unavailable on either side.
+  if (left.dev !== 0 && right.dev !== 0 && left.dev !== right.dev) return false
+  return left.ino !== 0 && left.ino === right.ino
+}
+
 function lockOwnershipChangedError(lockPath) {
   return new Error(`Lefthook installer lock ownership changed for ${lockPath}; refusing to remove it`)
 }
@@ -362,8 +372,7 @@ function releaseInstallLock(lockPath, ownedRecord, ownedStat) {
     currentStat === undefined
     || !currentStat.isFile()
     || currentStat.isSymbolicLink()
-    || currentStat.dev !== ownedStat.dev
-    || currentStat.ino !== ownedStat.ino
+    || !sameFileIdentity(currentStat, ownedStat)
     || readInstallLock(lockPath) !== ownedRecord
   ) {
     throw lockOwnershipChangedError(lockPath)
@@ -402,8 +411,7 @@ async function acquireInstallLock(commonDirectory) {
         publishedStat === undefined
         || !publishedStat.isFile()
         || publishedStat.isSymbolicLink()
-        || publishedStat.dev !== ownedStat.dev
-        || publishedStat.ino !== ownedStat.ino
+        || !sameFileIdentity(publishedStat, ownedStat)
       ) {
         throw lockOwnershipChangedError(lockPath)
       }
