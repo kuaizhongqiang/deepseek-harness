@@ -14,7 +14,17 @@ import {
 } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
-import lefthookPackage from 'lefthook/package.json' with { type: 'json' }
+
+/** lefthook's manifest, or undefined when lefthook isn't installed (a
+ * production-only install, e.g. pnpm deploy's internal `install --production`,
+ * strips the dev dependency). Hook installation then simply skips: lefthook is
+ * dev tooling, its absence must not fail the install. */
+let lefthookPackage = undefined
+try {
+  lefthookPackage = (await import('lefthook/package.json', { with: { type: 'json' } })).default
+} catch {
+  // lefthook absent — main() returns early below.
+}
 
 const MINIMUM_GIT = [2, 26, 0]
 const HOOKS_DIRECTORY = 'dsh-hooks'
@@ -698,7 +708,7 @@ function probePairingMergeDriver(root) {
 
 async function main() {
   if (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true') return
-  if (typeof lefthookPackage.bin?.lefthook !== 'string') return
+  if (lefthookPackage === undefined || typeof lefthookPackage.bin?.lefthook !== 'string') return
   const probe = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' })
   if (probe.status !== 0) return
   const root = stripGitLineTerminator(probe.stdout)
