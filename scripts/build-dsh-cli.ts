@@ -19,7 +19,7 @@
 
 import { cp, lstat, mkdir, readFile, readdir, realpath, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 const root = resolve(import.meta.dirname, '..')
@@ -80,32 +80,57 @@ async function ensureDirectDeps(target: string): Promise<void> {
   const manifest = JSON.parse(await readFile(join(target, 'package.json'), 'utf8')) as {
     dependencies?: Record<string, string>
   }
-  const workspaceModules = join(root, 'node_modules')
+  // pnpm's legacy deploy hoists some direct dependencies beside the deploy
+  // source rather than into the target, and the workspace ROOT node_modules
+  // does not link them (the root package does not depend on them). Source the
+  // fallback from the deploy root's own node_modules, mirroring
+  // build-exe-for-python-sdk.ts's restoreLegacyHoists.
+  const deployRootModules = join(root, APP_DIR, 'dsh-cli-source', 'node_modules')
   const missing: string[] = []
   for (const dependency of Object.keys(manifest.dependencies ?? {}).sort()) {
     const destination = join(target, 'node_modules', dependency)
     if (existsSync(destination)) continue
-    const source = join(workspaceModules, dependency)
+    const source = join(deployRootModules, dependency)
     if (!existsSync(source)) {
       missing.push(dependency)
       continue
     }
     await mkdir(dirname(destination), { recursive: true })
-    await cp(source, destination, { recursive: true, dereference: true })
+    // Exclude the package's own nested node_modules: in pnpm's link layout it
+    // holds dangling symlinks that cp's recursion would fail to stat. The
+    // package's bare imports resolve upward to the closure's hoisted
+    // node_modules at runtime, mirroring restoreLegacyHoists.
+    const nested = join(source, 'node_modules')
+    await cp(source, destination, {
+      recursive: true,
+      dereference: true,
+      filter: path => path !== nested && !path.startsWith(nested + sep),
+    })
   }
   if (missing.length > 0) {
     throw new Error(`build-dsh-cli: staged dependencies remain missing: ${missing.join(', ')}`)
   }
 }
 
-/** Lift the CLI's `bin.js` + split chunks + `config/` to the closure root. */
+/**
+ * Lift the CLI's `bin.js` + split chunks + `config/` into the closure.
+ *
+ * The CLI reads its own version and computes `INSTALL_ANCHOR` via
+ * `new URL('../package.json', import.meta.url)`, which assumes the entry sits
+ * one directory BELOW the manifest (as `apps/cli/lib/bin.js` does for
+ * `apps/cli/package.json`). So the closure must keep the CLI under `lib/`,
+ * with the closure manifest at the root — otherwise the anchor walks up to
+ * `apps/deepseek-agent-client-desktop/package.json`.
+ */
 async function liftCliEntry(target: string): Promise<void> {
   const cliDir = join(target, 'node_modules', CLI_MANIFEST_DIR)
   if (!existsSync(join(cliDir, 'lib'))) {
     throw new Error(`build-dsh-cli: @deepseek-ai/dsh has no built lib/ under ${cliDir}`)
   }
+  const libOut = join(target, 'lib')
+  await mkdir(libOut, { recursive: true })
   for (const name of await readdir(join(cliDir, 'lib'))) {
-    if (name.endsWith('.js')) await cp(join(cliDir, 'lib', name), join(target, name))
+    if (name.endsWith('.js')) await cp(join(cliDir, 'lib', name), join(libOut, name))
   }
   const configSource = join(cliDir, 'config')
   if (existsSync(configSource)) {

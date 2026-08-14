@@ -30,7 +30,9 @@ let tray: Tray | undefined
 function resolveServerCommand(): string[] {
   const override = process.env.DSH_CLIENT_DESKTOP_SERVER_COMMAND
   if (override !== undefined) return JSON.parse(override) as string[]
-  const bundled = join(process.resourcesPath, 'dsh-cli', 'bin.js')
+  // The closure keeps the CLI entry under lib/ so its `../package.json`
+  // anchor resolves to the closure manifest (see scripts/build-dsh-cli.ts).
+  const bundled = join(process.resourcesPath, 'dsh-cli', 'lib', 'bin.js')
   if (existsSync(bundled)) return ['node', bundled, '--profile', 'server', '--port', '0']
   return ['dsh', '--profile', 'server', '--port', '0']
 }
