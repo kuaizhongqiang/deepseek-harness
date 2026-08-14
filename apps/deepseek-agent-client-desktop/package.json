@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-deepseek-agent-client-desktop",
   "description": "DeepSeek Agent Client Desktop: an Electron shell that lazily starts the shared dsh server and loads the web UI from it",
-  "version": "0.1.0-rc.5",
+  "version": "0.0.2",
   "private": true,
   "license": "MIT",
   "type": "module",
