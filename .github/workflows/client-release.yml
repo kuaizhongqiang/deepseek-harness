@@ -1,0 +1,219 @@
+# Build and release the three client artifacts on a dsh-v* tag (or a manual
+# dispatch with an explicit tag): dsh-server (portable dsh-cli closure tarball),
+# dsh-vscode (.vsix), dsh-desktop (nsis / dmg / AppImage).
+#
+# The desktop app needs electron + electron-builder, whose postinstall scripts
+# the workspace `allowBuilds` denies for the fast typecheck/lint installs. This
+# workflow therefore installs normally and then downloads the electron binary
+# explicitly. npm publish of the dsh-server packages is the existing
+# release.yml flow (manual dispatch on the same dsh-v* tag), not this workflow.
+
+name: Client Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create (e.g. dsh-v0.1.0-rc.6). Leave empty to draft the release in this workflow run.'
+        required: false
+        type: string
+  push:
+    tags:
+      - 'dsh-v*'
+
+env:
+  PRIMARY_NODE_VERSION: '24'
+  DSH_TELEMETRY_DISABLED: '1'
+
+concurrency:
+  group: client-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dsh-cli:
+    name: Build dsh-cli closure
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace lib
+        run: pnpm run build:lib
+
+      - name: Stage the dsh-cli closure
+        # lib/ is already built; pass --skip-build so the script only deploys.
+        run: pnpm exec tsx scripts/build-dsh-cli.ts --skip-build
+
+      - name: Read workspace version
+        id: version
+        run: echo "value=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-cli
+          path: apps/deepseek-agent-client-desktop/dsh-cli
+
+  desktop:
+    name: Desktop (${{ matrix.platform }})
+    needs: [dsh-cli]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            runner: ubuntu-24.04
+            installer: '*.AppImage'
+          - platform: windows
+            runner: windows-latest
+            installer: '*.exe'
+          - platform: macos
+            runner: macos-latest
+            installer: '*.dmg'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      - name: Download electron binary
+        # Workspace allowBuilds denies electron's postinstall (binary download)
+        # for the fast typecheck/lint installs; fetch it explicitly here.
+        run: node apps/deepseek-agent-client-desktop/node_modules/electron/install.js
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dsh-cli
+          path: apps/deepseek-agent-client-desktop/dsh-cli
+
+      - name: Build workspace lib
+        run: pnpm run build:lib
+
+      - name: Build the Electron shell (main + preload)
+        run: pnpm --filter @deepseek-ai/dsh-deepseek-agent-client-desktop run build
+
+      - name: Package installer
+        run: pnpm --filter @deepseek-ai/dsh-deepseek-agent-client-desktop exec electron-builder --config electron-builder.yml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-desktop-${{ matrix.platform }}
+          path: apps/deepseek-agent-client-desktop/release/${{ matrix.installer }}
+          if-no-files-found: error
+
+  vscode:
+    name: Package VSCode vsix
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      - name: Package vsix (unscoped shim)
+        run: pnpm --filter @deepseek-ai/dsh-deepseek-agent-client-vscode run package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-vscode
+          path: apps/deepseek-agent-client-vscode/dist/*.vsix
+          if-no-files-found: error
+
+  server:
+    name: Bundle dsh-server tarball
+    needs: [dsh-cli]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dsh-cli
+          path: dsh-cli
+
+      - name: Read workspace version
+        id: version
+        run: echo "value=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Create portable server tarball
+        run: |
+          tar -czf "dsh-server-${{ steps.version.outputs.value }}.tgz" dsh-cli
+          ls -la dsh-server-*.tgz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-server
+          path: dsh-server-*.tgz
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: [desktop, vscode, server]
+    if: ${{ startsWith(github.ref, 'refs/tags/dsh-v') || inputs.tag != '' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Compute tag name
+        id: tag
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          echo "value=${tag}" >> "$GITHUB_OUTPUT"
+          echo "assets:"; ls -la assets/
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.value }}
+          files: assets/*
+          fail_on_unmatched_files: true
+          body: |
+            DeepSeek Agent Client release.
+
+            - **dsh-server**: portable dsh-cli closure (run `node dsh-cli/bin.js --profile server`)
+            - **dsh-vscode**: `deepseek-agent-client-*.vsix`
+            - **dsh-desktop**: installers (nsis / dmg / AppImage)
+
+            The dsh-server packages are also published to npm via the Release (dsh)
+            workflow on this tag.
