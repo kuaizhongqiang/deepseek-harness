@@ -2,7 +2,7 @@
   "name": "@deepseek-ai/dsh-deepseek-agent-client-vscode",
   "displayName": "DeepSeek Agent Client for VSCode",
   "description": "Full chat panel in the sidebar, bridged to the shared dsh server with native diff/terminal/dialog integration",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "publisher": "deepseek-ai",
   "private": true,
   "license": "MIT",
