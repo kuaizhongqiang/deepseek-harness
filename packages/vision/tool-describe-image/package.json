@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-tool-describe-image",
   "description": "Model-facing describe_image tool: describes an image through a configurable OpenAI-compatible vision endpoint (Xiaomi MiMo by default), reading from a session attachment or a disk path",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "publishConfig": {
     "access": "public"
   },
