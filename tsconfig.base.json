@@ -272,7 +272,8 @@
         "./packages/identity/*/src",
         "./packages/test-support/*/src",
         "./packages/host/*/src",
-        "./packages/client/*/src"
+        "./packages/client/*/src",
+        "./packages/vision/*/src"
       ],
       // Playwright's optional `typeof import('electron')` loads real electron
       // types whenever electron is installed, and electron's NodeJS.Process

@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { agentEvents } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { parseImageRefHint } from '@deepseek-ai/dsh-attachment'
 import LlmRuntime, { LlmAdapter, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type {
   GenerateOptions, LlmCallConfig, LlmModelInfo, LlmModelReasoningInfo, LlmProviderInfo,
@@ -18,6 +19,8 @@ import type {
 import SessionStore from '@deepseek-ai/dsh-session'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import * as ReadImageTool from '@deepseek-ai/dsh-tool-describe-image'
 import UserQuestionService from '@deepseek-ai/dsh-user-questions'
 import type { RpcRequest } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
 import { RpcId } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
@@ -495,6 +498,147 @@ describe('Web session model selection', () => {
     expect(catalog.current).toEqual({ provider: 'deleted-gateway', model: 'deleted-model' })
     expect(catalog.groups.flatMap(group => group.models.map(model => `${group.id}/${model.id}`)))
       .not.toContain('deleted-gateway/deleted-model')
+    await ctx.fiber.dispose()
+  })
+})
+
+describe('describe_image attachment conversion', () => {
+  /** A vision-capable adapter whose models declare image input. */
+  class VisionAdapter extends LlmAdapter {
+    constructor(private readonly name: string) { super() }
+    override providerInfo(provider: string): LlmProviderInfo {
+      return { id: provider, name: this.name }
+    }
+    override listModels(): Promise<readonly LlmModelInfo[]> {
+      return Promise.resolve([{ provider: 'vision', id: 'see', name: 'See', inputModalities: ['text', 'image'] }])
+    }
+    override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+      return Promise.resolve({ provider, id: model, name: model, inputModalities: ['text', 'image'] })
+    }
+    override async *stream(_options: GenerateOptions): AsyncIterable<StreamChunk> { /* unused */ }
+  }
+
+  interface ConvertHarness {
+    ctx: Context
+    agent: Agent
+    api: ReturnType<typeof createApiProxy>
+    sessionId: SessionId
+    saveImage: ReturnType<typeof vi.fn>
+  }
+
+  async function harnessWithTool(withTool: boolean): Promise<ConvertHarness> {
+    const { ctx, agent, sessionId } = await harness()
+    ctx.llm.registerAdapter(['text-only'], new class extends LlmAdapter {
+      override providerInfo(provider: string): LlmProviderInfo { return { id: provider, name: 'Text Only' } }
+      override listModels(): Promise<readonly LlmModelInfo[]> { return Promise.resolve([]) }
+      override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+        return Promise.resolve({ provider, id: model, name: model, inputModalities: ['text'] })
+      }
+      override async *stream(_options: GenerateOptions): AsyncIterable<StreamChunk> { /* unused */ }
+    }())
+    ctx.llm.registerAdapter(['vision'], new VisionAdapter('Vision'))
+    if (withTool) {
+      await ctx.plugin(ToolRuntime)
+      await ctx.plugin(ReadImageTool, {})
+    }
+    const saveImage = vi.fn((input: { data: Uint8Array; mediaType: string; name?: string }) => Promise.resolve({
+      attachmentId: `att-${String(input.data[0])}`,
+      mediaType: input.mediaType,
+      bytes: input.data.byteLength,
+      width: 1,
+      height: 1,
+      ...input.name === undefined ? {} : { name: input.name },
+    }))
+    ctx.provide('attachments', {
+      imageLimits: {
+        maxImageBytes: 4, maxImagesPerMessage: 2, maxMessageImageBytes: 4, maxImagePixels: 4, mediaTypes: ['image/png'],
+      },
+      validateImage: (_input: { data: Uint8Array }) => Promise.resolve(),
+      saveImage,
+      readImage: async (ref: { attachmentId: string }) => Promise.resolve({
+        ref,
+        data: new Uint8Array([1]),
+      }),
+    } as never)
+    const followup = vi.fn((message: UserMessage) => {
+      // Mirror the real agent: the accepted user message lands in the log,
+      // which is what authorizes later attachment reads.
+      agent.session.append('user/message', message, { surfaceOp: 'append' })
+    })
+    Object.assign(agent, { followup })
+    const api = createApiProxy(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
+      cwd: '/tmp',
+    })
+    return { ctx, agent, api, sessionId, saveImage }
+  }
+
+  const IMAGE_PART = { type: 'image' as const, mediaType: 'image/png' as const, data: 'AQ==', name: 'qr.png' }
+
+  it('converts images to hint text for a text-only model when describe_image is mounted', async () => {
+    const { ctx, agent, api, sessionId, saveImage } = await harnessWithTool(true)
+    await api.sessions.selectModel(request({ sessionId, provider: 'text-only', model: 'plain' }))
+
+    const result = await api.sessions.prompt(request({
+      sessionId, mode: 'queue' as const,
+      content: [IMAGE_PART, { type: 'text' as const, text: 'what is this' }],
+    }))
+    expect(result.result.ok).toBe(true)
+
+    const message = (agent as unknown as { followup: ReturnType<typeof vi.fn> }).followup.mock.calls[0]?.[0] as UserMessage
+    const [hint, text] = message.content
+    expect(hint?.type).toBe('text')
+    expect(text).toEqual({ type: 'text', text: 'what is this' })
+    const hintText = (hint as { text: string }).text
+    expect(hintText).toContain('describe_image')
+    expect(hintText).toContain('att-1')
+    // The hint is the authorization carrier: the ref parses back losslessly.
+    expect(parseImageRefHint(hintText)).toEqual({
+      attachmentId: 'att-1', mediaType: 'image/png', bytes: 1, width: 1, height: 1, name: 'qr.png',
+    })
+    expect(saveImage).toHaveBeenCalledTimes(1)
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps rejecting images for a text-only model when describe_image is absent', async () => {
+    const { ctx, api, sessionId } = await harnessWithTool(false)
+    await api.sessions.selectModel(request({ sessionId, provider: 'text-only', model: 'plain' }))
+
+    const result = await api.sessions.prompt(request({
+      sessionId, mode: 'queue' as const, content: [IMAGE_PART],
+    }))
+    expect(result.result).toMatchObject({
+      ok: false,
+      error: { code: 'attachment-error', details: { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' } },
+    })
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps image blocks for a vision-capable model', async () => {
+    const { ctx, agent, api, sessionId } = await harnessWithTool(true)
+    await api.sessions.selectModel(request({ sessionId, provider: 'vision', model: 'see' }))
+
+    const result = await api.sessions.prompt(request({
+      sessionId, mode: 'queue' as const, content: [IMAGE_PART],
+    }))
+    expect(result.result.ok).toBe(true)
+
+    const message = (agent as unknown as { followup: ReturnType<typeof vi.fn> }).followup.mock.calls[0]?.[0] as UserMessage
+    expect(message.content[0]?.type).toBe('image')
+    await ctx.fiber.dispose()
+  })
+
+  it('authorizes session.attachment reads through a converted hint', async () => {
+    const { ctx, api, sessionId } = await harnessWithTool(true)
+    await api.sessions.selectModel(request({ sessionId, provider: 'text-only', model: 'plain' }))
+    await api.sessions.prompt(request({
+      sessionId, mode: 'queue' as const, content: [IMAGE_PART],
+    }))
+
+    const read = await api.sessions.attachment(request({
+      sessionId, attachmentId: 'att-1' as never,
+    }))
+    expect(read.result).toMatchObject({ ok: true, value: { attachment: { attachmentId: 'att-1' } } })
     await ctx.fiber.dispose()
   })
 })

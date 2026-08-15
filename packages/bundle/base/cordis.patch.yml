@@ -369,6 +369,12 @@
       config:
         allowParallelInProgress: true
 
+    # Image understanding through a tool: the main model stays text-only and
+    # calls describe_image, which asks a configurable OpenAI-compatible vision
+    # endpoint (Xiaomi MiMo by default).
+    - id: tool-describe-image
+      name: '@deepseek-ai/dsh-tool-describe-image'
+
     # Persisted same-session goals reach the model and the slash menu here; the
     # domain, driver, and `/goal` command are above.
     - id: tool-goal

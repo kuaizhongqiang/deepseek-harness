@@ -10,7 +10,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
-import { AttachmentError } from '@deepseek-ai/dsh-attachment'
+import { AttachmentError, imageRefHint, parseImageRefHint } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { contentHasImage, createUserMessage, freezeMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { errorChain } from '@deepseek-ai/dsh-llm'
@@ -192,10 +192,16 @@ function imageBlockIn(content: unknown, match: (ref: ImageAttachmentRef) => bool
   if (!Array.isArray(content)) return undefined
   for (const value of content) {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) continue
-    const block = value as { type?: unknown; attachment?: unknown; content?: unknown }
+    const block = value as { type?: unknown; attachment?: unknown; text?: unknown; content?: unknown }
     if (block.type === 'image' && typeof block.attachment === 'object' && block.attachment !== null) {
       const ref = block.attachment as ImageAttachmentRef
       if (match(ref)) return ref
+    }
+    if (block.type === 'text' && typeof block.text === 'string') {
+      // A converted session carries the reference as a hint text block instead
+      // of an image block; the hint format is owned by dsh-attachment.
+      const hint = parseImageRefHint(block.text)
+      if (hint !== undefined && match(hint)) return hint
     }
     if (block.type === 'tool-result') {
       const nested = imageBlockIn(block.content, match)
@@ -2482,19 +2488,35 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const hasImage = content.some(part => part.type === 'image')
         const admit = async (): Promise<RpcResponse<{ accepted: true }>> => {
           try {
+            let convertToHints = false
             if (hasImage) {
               const current = selectionFor(agent).current
               const modelInfo = await ctx.llm.resolveModelInfo(current.provider, current.model)
-              if (modelInfo.inputModalities !== undefined && !modelInfo.inputModalities.includes('image')) {
-                return err(request, {
-                  code: 'attachment-error',
-                  message: `Model "${current.model}" does not support image input.`,
-                  details: { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' },
-                })
+              const textOnly = modelInfo.inputModalities !== undefined
+                && !modelInfo.inputModalities.includes('image')
+              if (textOnly) {
+                // A text-only main model cannot receive image content, but the
+                // describe_image tool can describe it: the images are stored as
+                // durable attachments and the model sees hint text instead.
+                // Without the tool there is no way to see the image, so the
+                // historical rejection stays.
+                convertToHints = ctx.get('tools')?.get('describe_image') !== undefined
+                if (!convertToHints) {
+                  return err(request, {
+                    code: 'attachment-error',
+                    message: `Model "${current.model}" does not support image input.`,
+                    details: { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' },
+                  })
+                }
               }
             }
             const durable = await durablePromptContent(ctx, content)
-            const message: UserMessage = createUserMessage({ content: durable, source })
+            const converted = convertToHints
+              ? durable.map(block => block.type === 'image'
+                ? { type: 'text' as const, text: imageRefHint(block.attachment) }
+                : block)
+              : durable
+            const message: UserMessage = createUserMessage({ content: converted, source })
             if (mode === 'steer') agent.steer(message)
             else agent.followup(message)
           } catch (error: unknown) {

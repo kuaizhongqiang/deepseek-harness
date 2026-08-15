@@ -37,6 +37,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-subagent-report` | `report` | `ctx.subagents`, `ctx.systemPrompt`, `a live continuable in-process child Agent` | `tool/call`, `tool/result`, `a user-role message in the direct parent session` | - | Registered per continuable in-process child rather than globally, so this schema is visible only inside such a child and survives its global `toolFilter`. The same contribution installs the child-scoped `tool:report` prompt section, which this catalog does not render. The parent-facing `send_message` tool is installed independently. |
 | `@deepseek-ai/dsh-tool-jobs` | `job_kill`, `job_list`, `job_output` | `ctx.tools`, `ctx.jobs`, `ctx.systemPrompt` | `tool/call`, `tool/result`, `user/message via agent.inject() for background completion notices` | - | The kind-agnostic background-job controller: background bash commands, PTY sends, and subagents are read, listed, and killed through the same three tools. Loading the plugin attaches the controller that arms producers' `ctx.jobs.start()`. |
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`, `owning Agent session` | `tool/call`, `todo/write`, `tool/result` | - | todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task. |
+| `@deepseek-ai/dsh-tool-describe-image` | `describe_image` | `ctx.tools`, `attachment service (attachmentId source)`, `credentials or environment (apiKeyEnv)` | `tool/call`, `tool/result` | - | describe_image describes an image through a configurable OpenAI-compatible vision endpoint (Xiaomi MiMo by default), reading from a session attachment or a disk path. The main conversation model stays text-only; the vision backend is a tool configuration, not a model switch. Unlike the file-system read_image (which returns the image itself and requires an image-capable route), describe_image returns the vision model's text description on any route. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
 
@@ -1728,6 +1729,42 @@ Record and update a structured task list for the current work. Send the ENTIRE l
 Source: [`packages/todo/tool-todo/src/index.ts`](../packages/todo/tool-todo/src/index.ts)
 
 todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task.
+
+<a id="deepseek-aidsh-tool-describe-image"></a>
+
+## `@deepseek-ai/dsh-tool-describe-image`
+
+### `describe_image`
+
+Describe the content of one image. Pass either attachmentId (an image the user attached to this conversation, e.g. pasted or dropped) or path (a file on disk). The vision model reads the image and returns a text description; use it when the user asks about an attached image or an image file.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "attachmentId": {
+      "type": "string",
+      "description": "The id of an image the user attached to this conversation (pasted or dropped). Exactly one of attachmentId and path is required."
+    },
+    "path": {
+      "type": "string",
+      "description": "Absolute path of an image file on disk (png/jpg/jpeg/webp/gif/bmp). Exactly one of attachmentId and path is required."
+    },
+    "prompt": {
+      "type": "string",
+      "description": "What to look for; defaults to describing the image."
+    },
+    "maxTokens": {
+      "type": "integer",
+      "description": "Vision response token budget; defaults to the configured value."
+    }
+  }
+}
+```
+
+Source: [`packages/vision/tool-describe-image/src/index.ts`](../packages/vision/tool-describe-image/src/index.ts)
+
+describe_image describes an image through a configurable OpenAI-compatible vision endpoint (Xiaomi MiMo by default), reading from a session attachment or a disk path. The main conversation model stays text-only; the vision backend is a tool configuration, not a model switch. Unlike the file-system read_image (which returns the image itself and requires an image-capable route), describe_image returns the vision model's text description on any route.
 
 <a id="deepseek-aidsh-tool-workflow"></a>
 
