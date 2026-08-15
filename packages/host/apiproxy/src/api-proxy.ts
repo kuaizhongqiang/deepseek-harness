@@ -2496,11 +2496,11 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
                 && !modelInfo.inputModalities.includes('image')
               if (textOnly) {
                 // A text-only main model cannot receive image content, but the
-                // read_image tool can describe it: the images are stored as
+                // describe_image tool can describe it: the images are stored as
                 // durable attachments and the model sees hint text instead.
                 // Without the tool there is no way to see the image, so the
                 // historical rejection stays.
-                convertToHints = ctx.get('tools')?.get('read_image') !== undefined
+                convertToHints = ctx.get('tools')?.get('describe_image') !== undefined
                 if (!convertToHints) {
                   return err(request, {
                     code: 'attachment-error',

@@ -20,7 +20,7 @@ import SessionStore from '@deepseek-ai/dsh-session'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import * as ReadImageTool from '@deepseek-ai/dsh-tool-read-image'
+import * as ReadImageTool from '@deepseek-ai/dsh-tool-describe-image'
 import UserQuestionService from '@deepseek-ai/dsh-user-questions'
 import type { RpcRequest } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
 import { RpcId } from '@deepseek-ai/dsh-host-apiproxy/api/rpc'
@@ -502,7 +502,7 @@ describe('Web session model selection', () => {
   })
 })
 
-describe('read_image attachment conversion', () => {
+describe('describe_image attachment conversion', () => {
   /** A vision-capable adapter whose models declare image input. */
   class VisionAdapter extends LlmAdapter {
     constructor(private readonly name: string) { super() }
@@ -575,7 +575,7 @@ describe('read_image attachment conversion', () => {
 
   const IMAGE_PART = { type: 'image' as const, mediaType: 'image/png' as const, data: 'AQ==', name: 'qr.png' }
 
-  it('converts images to hint text for a text-only model when read_image is mounted', async () => {
+  it('converts images to hint text for a text-only model when describe_image is mounted', async () => {
     const { ctx, agent, api, sessionId, saveImage } = await harnessWithTool(true)
     await api.sessions.selectModel(request({ sessionId, provider: 'text-only', model: 'plain' }))
 
@@ -590,7 +590,7 @@ describe('read_image attachment conversion', () => {
     expect(hint?.type).toBe('text')
     expect(text).toEqual({ type: 'text', text: 'what is this' })
     const hintText = (hint as { text: string }).text
-    expect(hintText).toContain('read_image')
+    expect(hintText).toContain('describe_image')
     expect(hintText).toContain('att-1')
     // The hint is the authorization carrier: the ref parses back losslessly.
     expect(parseImageRefHint(hintText)).toEqual({
@@ -600,7 +600,7 @@ describe('read_image attachment conversion', () => {
     await ctx.fiber.dispose()
   })
 
-  it('keeps rejecting images for a text-only model when read_image is absent', async () => {
+  it('keeps rejecting images for a text-only model when describe_image is absent', async () => {
     const { ctx, api, sessionId } = await harnessWithTool(false)
     await api.sessions.selectModel(request({ sessionId, provider: 'text-only', model: 'plain' }))
 
