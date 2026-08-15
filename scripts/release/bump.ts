@@ -37,6 +37,9 @@ const RELEASE_TYPES = ['major', 'minor', 'patch'] as const
 /** The workspace root manifest, which carries the dsh family's version. */
 const ROOT_MANIFEST = 'package.json'
 
+/** The workspace package manager. On Windows the pnpm shim is a `.cmd` file, which Node's `spawnSync` cannot exec directly. */
+const PNPM = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+
 /** One manifest the bump rewrites, and the tag its new version will carry. */
 interface PlannedVersion {
   /** Repository-relative manifest path. */
@@ -345,7 +348,7 @@ function main(): void {
   const dryRun = values['dry-run']
   if (!dryRun) {
     for (const entry of planned) writeVersion(root, entry.manifestPath, entry.from, entry.to)
-    capture('pnpm', ['install', '--lockfile-only'])
+    capture(PNPM, ['install', '--lockfile-only'])
   }
 
   const summary = sharedVersion
