@@ -17,19 +17,12 @@ import type { BuiltinProvider } from '@earendil-works/pi-ai/providers/all'
 import type {
   Api,
   Model,
-  ModelCost,
   ModelThinkingLevel,
   OpenAICompletionsCompat,
   Provider,
   ThinkingLevelMap,
 } from '@earendil-works/pi-ai'
-
-/**
- * Pricing for a model the installed catalog does not describe. The harness
- * never reads pi-ai's cost metadata — `replay.ts` zeroes it and no consumer
- * reports spend — so this is the absence of a fact, not a configurable rate.
- */
-const NO_COST: ModelCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+import { harnessBuiltinModels, harnessBuiltinProviders, NO_COST } from './builtin.ts'
 
 /** One request modality a pi-ai model may accept. */
 export type PiAiModality = Model<Api>['input'][number]
@@ -116,11 +109,15 @@ let providerIndex: Map<string, Provider> | undefined
 /**
  * Installed catalog providers by id, constructed once. Each entry owns the API
  * implementations for its own models, which is why a catalog route reuses this
- * provider instead of being rebuilt from parts.
+ * provider instead of being rebuilt from parts. The harness-declared builtins
+ * (`./builtin.ts`) join the same index after the pi-ai catalog, so a route
+ * either family ships is a catalog route to every consumer below.
  * @returns the catalog provider index.
  */
 function catalogProviders(): Map<string, Provider> {
-  providerIndex ??= new Map(builtinProviders().map(provider => [provider.id, provider]))
+  providerIndex ??= new Map(
+    [...builtinProviders(), ...harnessBuiltinProviders()].map(provider => [provider.id, provider]),
+  )
   return providerIndex
 }
 
@@ -134,11 +131,12 @@ export function catalogProvider(provider: string): Provider | undefined {
 }
 
 /**
- * Every provider route the installed pi-ai catalog ships.
+ * Every provider route the installed catalog ships — pi-ai's builtins plus
+ * the harness-declared builtins.
  * @returns the catalog provider ids.
  */
 export function catalogProviderIds(): readonly string[] {
-  return getBuiltinProviders()
+  return [...getBuiltinProviders(), ...harnessBuiltinProviders().map(provider => provider.id)]
 }
 
 /**
@@ -162,11 +160,15 @@ export function catalogProviderTakesApiKey(provider: string): boolean {
 }
 
 /**
- * The installed catalog models for one route, indexed by model id.
+ * The installed catalog models for one route, indexed by model id — the pi-ai
+ * catalog for its own routes, the harness-builtin table for the routes it
+ * declares.
  * @param provider - provider route key.
- * @returns catalog models by id; empty for a route pi-ai does not ship.
+ * @returns catalog models by id; empty for a route neither family ships.
  */
 export function catalogModels(provider: string): Map<string, Model<Api>> {
+  const harness = harnessBuiltinModels(provider)
+  if (harness !== undefined) return new Map(harness.map(model => [model.id, model]))
   if (!catalogProviders().has(provider)) return new Map()
   const models = getBuiltinModels(provider as BuiltinProvider) as Model<Api>[]
   return new Map(models.map(model => [model.id, model]))

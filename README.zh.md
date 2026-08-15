@@ -32,6 +32,20 @@ node dsh-cli/bin.js --profile server
 
 server 绑定 `127.0.0.1`，写入 `~/.dsh/web.lock`，并向桌面端与 VS Code 客户端提供 Web UI 和 API。
 
+### 使用视觉模型的图片输入
+
+三个客户端都支持在输入框中以图片输入——粘贴、拖拽或一次添加多张——harness 内置了小米 MiMo-V2.5 视觉模型的目录条目（`mimo-v2.5`）。通过设置页的 Models 面板配置（为 `mimo` provider 填入密钥），或手动写入：
+
+```yaml
+# ~/.dsh/settings.yaml
+llm-pi-ai:
+  providers:
+    mimo:
+      apiKeyEnv: MIMO_API_KEY
+```
+
+已包含图片的会话会拒绝切换到纯文本模型；选择 `mimo-v2.5`（或任何支持图片的模型）即可讨论附带的图片。
+
 ### 从源码运行
 
 如需从仓库源码运行：

@@ -15,12 +15,23 @@ import type { PiAiReplayState } from '../src/replay.ts'
 import { assemble, type AssembledResult } from './assemble.ts'
 
 interface ProviderCase {
-  provider: 'openai' | 'anthropic'
-  api: 'openai-responses' | 'anthropic-messages'
+  provider: 'openai' | 'anthropic' | 'mimo'
+  api: 'openai-responses' | 'anthropic-messages' | 'openai-completions'
   model: string
   apiKey?: string
+  apiKeyEnv?: string
   baseURL?: string
   headers?: Record<string, string>
+  /** Whether the case exercises the image-input path (a vision-capable model). */
+  vision?: boolean
+  /** The hand-declared model catalog for a route pi-ai does not ship. */
+  models?: readonly { id: string; name?: string; input?: readonly ('text' | 'image')[]; contextWindow?: number; maxTokens?: number }[]
+  /**
+   * Whether the route is served by the harness-builtin catalog (`./src/builtin.ts`)
+   * rather than declared in the profile; the profile then carries only the
+   * credential and an optional endpoint override.
+   */
+  builtin?: boolean
 }
 
 const openAIBaseURL = process.env.DSH_PI_AI_OPENAI_BASE_URL
@@ -46,21 +57,50 @@ const providerCases: ProviderCase[] = [
     model: process.env.DSH_PI_AI_ANTHROPIC_MODEL ?? 'claude-opus-4-8',
     ...anthropicApiKey === undefined ? {} : { apiKey: anthropicApiKey },
     ...anthropicBaseURL === undefined ? {} : { baseURL: anthropicBaseURL },
+    vision: true,
+  },
+  {
+    provider: 'mimo',
+    api: 'openai-completions',
+    model: process.env.DSH_PI_AI_MIMO_MODEL ?? 'mimo-v2.5',
+    // The harness resolves the key through its own credential seam; the case
+    // only names the reference, and the suite self-skips while it is unset.
+    apiKeyEnv: 'MIMO_API_KEY',
+    vision: true,
+    // A harness-builtin route (packages/llm/llm-pi-ai/src/builtin.ts): the
+    // profile carries only the credential, proving the shipped catalog serves
+    // the endpoint, protocol, and model facts.
+    builtin: true,
   },
 ]
 
 const contexts: Context[] = []
+
+/** The provider profile one case drives: a builtin route carries only the credential. */
+function profileOf(profile: ProviderCase): Record<string, unknown> {
+  if (profile.builtin === true) {
+    return {
+      ...profile.apiKey === undefined ? {} : { apiKey: profile.apiKey },
+      ...profile.apiKeyEnv === undefined ? {} : { apiKeyEnv: profile.apiKeyEnv },
+      ...profile.baseURL === undefined ? {} : { baseURL: profile.baseURL },
+    }
+  }
+  return {
+    api: profile.api,
+    ...profile.apiKey === undefined ? {} : { apiKey: profile.apiKey },
+    ...profile.apiKeyEnv === undefined ? {} : { apiKeyEnv: profile.apiKeyEnv },
+    ...profile.baseURL === undefined ? {} : { baseURL: profile.baseURL },
+    ...profile.headers === undefined ? {} : { headers: profile.headers },
+    ...profile.models === undefined ? {} : { models: profile.models },
+  }
+}
 
 async function harness(image?: StoredImageAttachment): Promise<Context> {
   const ctx = new Context()
   contexts.push(ctx)
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(LlmPiAi, {
-    providers: Object.fromEntries(providerCases.map(profile => [profile.provider, {
-      ...profile.apiKey === undefined ? {} : { apiKey: profile.apiKey },
-      ...profile.baseURL === undefined ? {} : { baseURL: profile.baseURL },
-      ...profile.headers === undefined ? {} : { headers: profile.headers },
-    }])),
+    providers: Object.fromEntries(providerCases.map(profile => [profile.provider, profileOf(profile)])),
   })
   if (image !== undefined) {
     const fixture = image
@@ -143,7 +183,13 @@ const lookupTool: ToolSchema = {
 }
 
 for (const profile of providerCases) {
-  describe.skipIf(profile.apiKey === undefined)(
+  // A case skips when it has no usable credential: `apiKey` carries the value
+  // for cases that read it directly, while `apiKeyEnv` names a reference the
+  // harness resolves, which is usable only while the environment holds it.
+  describe.skipIf(
+    profile.apiKey === undefined
+    && (profile.apiKeyEnv === undefined || process.env[profile.apiKeyEnv] === undefined),
+  )(
     `llm-pi-ai ${profile.provider} e2e (${profile.api})`,
     () => {
       it('streams text with usage and native replay metadata', async () => {
@@ -204,8 +250,8 @@ for (const profile of providerCases) {
         expect(expectNativeReplay(second, profile).stopReason).toBe('stop')
       })
 
-      if (profile.provider === 'anthropic') {
-        it('sends a real image through the authenticated Anthropic visual path', async () => {
+      if (profile.vision === true) {
+        it('sends a real image through the authenticated visual path', async () => {
           const data = new Uint8Array(await readFile(
             new URL('../../../../assets/community-wecom-survey.png', import.meta.url),
           ))

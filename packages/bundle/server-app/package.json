@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-server-app",
   "description": "The shared-server bundle: the web patch layer (mounts the single-instance lock publisher, pins a dynamic loopback bind) plus the `server` profile composition constants",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publishConfig": {
     "access": "public"
   },
