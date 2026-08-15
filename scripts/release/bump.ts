@@ -348,7 +348,10 @@ function main(): void {
   const dryRun = values['dry-run']
   if (!dryRun) {
     for (const entry of planned) writeVersion(root, entry.manifestPath, entry.from, entry.to)
-    capture(PNPM, ['install', '--lockfile-only'])
+    // Windows: Node cannot exec the `.cmd` shim directly, so the command rides
+    // through cmd /c (the shim then finds the real pnpm script).
+    if (process.platform === 'win32') capture('cmd', ['/c', PNPM, 'install', '--lockfile-only'])
+    else capture(PNPM, ['install', '--lockfile-only'])
   }
 
   const summary = sharedVersion
