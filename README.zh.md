@@ -32,19 +32,21 @@ node dsh-cli/bin.js --profile server
 
 server 绑定 `127.0.0.1`，写入 `~/.dsh/web.lock`，并向桌面端与 VS Code 客户端提供 Web UI 和 API。
 
-### 使用视觉模型的图片输入
+### 使用 `describe_image` 工具的图片输入
 
-三个客户端都支持在输入框中以图片输入——粘贴、拖拽或一次添加多张——harness 内置了小米 MiMo-V2.5 视觉模型的目录条目（`mimo-v2.5`）。通过设置页的 Models 面板配置（为 `mimo` provider 填入密钥），或手动写入：
+三个客户端都支持在输入框中以图片输入——粘贴、拖拽或一次添加多张。主对话模型保持纯文本（DeepSeek V4 flash）：图片到达时，harness 将其存为 durable 附件，模型看到一条提示与 `describe_image` 工具，由该工具通过可配置的 OpenAI 兼容视觉端点（默认小米 MiMo）描述图片。视觉后端是工具配置（在 profile patch 中覆盖 `tool-describe-image` 行），而非模型切换：
 
 ```yaml
-# ~/.dsh/settings.yaml
-llm-pi-ai:
-  providers:
-    mimo:
-      apiKeyEnv: MIMO_API_KEY
+# in your profile's cordis.patch.yml
+- id: tool-describe-image
+  name: '@deepseek-ai/dsh-tool-describe-image'
+  config:
+    baseURL: https://api.xiaomimimo.com/v1
+    model: mimo-v2.5
+    apiKeyEnv: MIMO_API_KEY
 ```
 
-已包含图片的会话会拒绝切换到纯文本模型；选择 `mimo-v2.5`（或任何支持图片的模型）即可讨论附带的图片。
+支持图片的模型（如 MiMo）继续直接接收真实图片内容；未挂载 `describe_image` 的会话保留原有的纯文本拒绝行为。
 
 ### 从源码运行
 

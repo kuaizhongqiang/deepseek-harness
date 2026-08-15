@@ -58,6 +58,7 @@ import * as ToolSkill from '@deepseek-ai/dsh-tool-skill'
 import * as ToolSessionQuery from '@deepseek-ai/dsh-tool-session-query'
 import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
+import * as ToolDescribeImage from '@deepseek-ai/dsh-tool-describe-image'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import VmWorkflowEngine from '@deepseek-ai/dsh-workflow-worker-thread'
@@ -517,6 +518,18 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-describe-image',
+    dir: 'tool-describe-image',
+    source: 'packages/vision/tool-describe-image/src/index.ts',
+    requires: ['ctx.tools', 'attachment service (attachmentId source)', 'credentials or environment (apiKeyEnv)'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(ToolDescribeImage, {})
+    },
+    note:
+      'describe_image describes an image through a configurable OpenAI-compatible vision endpoint (Xiaomi MiMo by default), reading from a session attachment or a disk path. The main conversation model stays text-only; the vision backend is a tool configuration, not a model switch. Unlike the file-system read_image (which returns the image itself and requires an image-capable route), describe_image returns the vision model\'s text description on any route.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-workflow',

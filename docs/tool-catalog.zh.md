@@ -39,6 +39,7 @@
 | `@deepseek-ai/dsh-tool-subagent-report` | `report` | `ctx.subagents`、`ctx.systemPrompt`、`a live continuable in-process child Agent` | `tool/call`、`tool/result`、`a user-role message in the direct parent session` | - | 按可继续的进程内子级注册，而非全局注册，因此该 schema 仅在这种子级内部可见，并且不受其全局 `toolFilter` 影响。同一份贡献还会安装子级作用域的 `tool:report` 系统提示词 section，本目录不渲染该 section。面向父级的 `send_message` 工具单独安装。 |
 | `@deepseek-ai/dsh-tool-jobs` | `job_kill`、`job_list`、`job_output` | `ctx.tools`、`ctx.jobs`、`ctx.systemPrompt` | `tool/call`、`tool/result`、`user/message via agent.inject() for background completion notices` | - | 与任务种类无关的后台任务控制器：后台 bash 命令、PTY 发送和 subagent 都通过相同的 3 个工具读取、列出和终止。加载该插件会挂接控制器，从而启用生产方的 `ctx.jobs.start()`。 |
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`、`owning Agent session` | `tool/call`、`todo/write`、`tool/result` | - | todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。 |
+| `@deepseek-ai/dsh-tool-describe-image` | `describe_image` | `ctx.tools`、`attachment service (attachmentId source)`、`credentials or environment (apiKeyEnv)` | `tool/call`、`tool/result` | - | describe_image 通过可配置的 OpenAI 兼容视觉端点（默认小米 MiMo）描述图片，图片来源可以是会话附件或磁盘路径；主对话模型保持纯文本，视觉后端是工具配置而非模型切换。与文件系统 read_image（返回图片本身并要求路由支持图片）不同，describe_image 在任意路由上返回视觉模型的文本描述。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
 
@@ -1732,6 +1733,42 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 来源：[`packages/todo/tool-todo/src/index.ts`](../packages/todo/tool-todo/src/index.ts)
 
 todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。
+
+<a id="deepseek-aidsh-tool-describe-image"></a>
+
+## `@deepseek-ai/dsh-tool-describe-image`
+
+### `describe_image`
+
+描述一张图片的内容。传入 `attachmentId`（用户附加到本会话的图片，如粘贴或拖入）或 `path`（磁盘上的文件）之一。视觉模型读取图片并返回文本描述；当用户询问附加图片或图片文件时使用本工具。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "attachmentId": {
+      "type": "string",
+      "description": "The id of an image the user attached to this conversation (pasted or dropped). Exactly one of attachmentId and path is required."
+    },
+    "path": {
+      "type": "string",
+      "description": "Absolute path of an image file on disk (png/jpg/jpeg/webp/gif/bmp). Exactly one of attachmentId and path is required."
+    },
+    "prompt": {
+      "type": "string",
+      "description": "What to look for; defaults to describing the image."
+    },
+    "maxTokens": {
+      "type": "integer",
+      "description": "Vision response token budget; defaults to the configured value."
+    }
+  }
+}
+```
+
+来源：[`packages/vision/tool-describe-image/src/index.ts`](../packages/vision/tool-describe-image/src/index.ts)
+
+describe_image 通过可配置的 OpenAI 兼容视觉端点（默认小米 MiMo）描述图片，图片来源可以是会话附件或磁盘路径。主对话模型保持纯文本；视觉后端是工具配置，而非模型切换。与文件系统 read_image（返回图片本身并要求路由支持图片）不同，describe_image 在任意路由上返回视觉模型的文本描述。
 
 <a id="deepseek-aidsh-tool-workflow"></a>
 

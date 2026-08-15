@@ -32,19 +32,21 @@ node dsh-cli/bin.js --profile server
 
 The server binds to `127.0.0.1`, writes `~/.dsh/web.lock`, and serves the Web UI and API that the desktop and VS Code clients attach to.
 
-### Image input with a vision model
+### Image input with the `describe_image` tool
 
-All three clients support image input in the composer — paste, drag-and-drop, or add multiple images — and the harness ships a builtin catalog entry for the Xiaomi MiMo-V2.5 vision model (`mimo-v2.5`). Configure it through the Models settings page (enter the key for the `mimo` provider) or by hand:
+All three clients support image input in the composer — paste, drag-and-drop, or add multiple images. The main conversation model stays text-only (DeepSeek V4 flash): when an image arrives, the harness stores it as a durable attachment and the model sees a hint plus the `describe_image` tool, which describes the image through a configurable OpenAI-compatible vision endpoint (Xiaomi MiMo by default). The vision backend is a tool configuration (override the `tool-describe-image` row in your profile patch), not a model switch:
 
 ```yaml
-# ~/.dsh/settings.yaml
-llm-pi-ai:
-  providers:
-    mimo:
-      apiKeyEnv: MIMO_API_KEY
+# in your profile's cordis.patch.yml
+- id: tool-describe-image
+  name: '@deepseek-ai/dsh-tool-describe-image'
+  config:
+    baseURL: https://api.xiaomimimo.com/v1
+    model: mimo-v2.5
+    apiKeyEnv: MIMO_API_KEY
 ```
 
-A session that already contains images refuses switching to a text-only model; select `mimo-v2.5` (or any image-capable model) to talk about attached images.
+Vision-capable models (e.g. MiMo) keep receiving real image content directly; sessions without `describe_image` mounted keep the historical text-only rejection.
 
 ### Run from source
 
