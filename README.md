@@ -32,6 +32,20 @@ node dsh-cli/bin.js --profile server
 
 The server binds to `127.0.0.1`, writes `~/.dsh/web.lock`, and serves the Web UI and API that the desktop and VS Code clients attach to.
 
+### Image input with a vision model
+
+All three clients support image input in the composer — paste, drag-and-drop, or add multiple images — and the harness ships a builtin catalog entry for the Xiaomi MiMo-V2.5 vision model (`mimo-v2.5`). Configure it through the Models settings page (enter the key for the `mimo` provider) or by hand:
+
+```yaml
+# ~/.dsh/settings.yaml
+llm-pi-ai:
+  providers:
+    mimo:
+      apiKeyEnv: MIMO_API_KEY
+```
+
+A session that already contains images refuses switching to a text-only model; select `mimo-v2.5` (or any image-capable model) to talk about attached images.
+
 ### Run from source
 
 To run from a repository checkout:

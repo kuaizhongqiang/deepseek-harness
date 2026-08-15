@@ -79,6 +79,18 @@ profile 的 `models` 列表是*替换*该路由已安装 catalog，而不是扩�
 
 `modelOverrides` 无需这份代价就能就地重塑单个已安装 catalog 模型：每个键是一个 catalog 模型 id，每个值可写 `models` 条目接受的同一批字段，只是 id 落在键上，而 catalog 的其余部分原样继续服务——「改一个模型、其余三十七个原样保留」只是一次三行编辑。一条覆盖会成为该 catalog 条目的配置，因此容量、档位与 compat 沿与 `models` 条目相同的路径解析，携带相同的诊断与相同的请求默认值语义。覆盖只在正服务自身 catalog 的 catalog 路由上才有意义：与 `models` 列表并存的一份（该列表本就替换了 catalog）、落在手工声明路由上的一份（其模型已在 `models` 中完整写出），或点名了 catalog 未描述模型的一份，都会被拒绝而非跳过，因为一个静默保持原样的模型，就是一个否则要有人费力追查的笔误。
 
+### Harness 内置 provider
+
+Harness 会声明 pi-ai 未提供的 catalog 条目，其服务方式与 pi-ai 自己的完全一致：它们并入 `catalogProviderIds()`（可配置 provider 目录与 Models 面板），`catalogModels()` 将其模型作为路由默认值提供，`buildProvider` 复用其 provider。`src/builtin.ts` 目前内置 `mimo`——小米 MiMo-V2.5，桌面 / VSCode / Web 客户端附带图片所用的视觉模型——提供 `mimo-v2.5`（文本 + 图片）与 `mimo-v2.5-pro`（仅文本），端点为 `https://api.xiaomimimo.com/v1`，因此只声明凭证的 profile 即可服务整条路由：
+
+```yaml
+providers:
+  mimo:
+    apiKeyEnv: MIMO_API_KEY
+```
+
+MiMo 采用 DeepSeek 风格推理协议（`reasoning_content`），因此内置模型携带 `compat.thinkingFormat: deepseek`；其 `thinkingLevelMap` 把每个 pi-ai 档位拼写为端点接受的取值（`minimal` 会被 400 拒绝，因此映射为 `low`），默认无档位时发送 `thinking: { type: "disabled" }`——验证过的快速路径，因为 MiMo 默认会思考。
+
 ### 按模型的推理（reasoning）档位
 
 `reasoningEfforts` 声明模型可选的思考级别：每个键是选择器提供的一个档位，其值是分派在协议中发送的拼写，因此 `high: high` 原样透传规范名称，而 `max: ultra` 则为使用自有词汇的网关改名。键取自 pi-ai 的档位集合（`off`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`）；未声明的档位不会被提供。省略该字段会保留已安装 catalog 条目的能力（手工声明的模型没有这份能力，也不推理）；`false` 声明一个不具备推理能力的模型，profile 正是以此从其网关无法服务的 catalog 模型上剥除推理；空声明会被拒绝，而不是在这两种含义之间去猜。

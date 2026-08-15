@@ -79,6 +79,18 @@ A profile's `models` list *replaces* the route's installed catalog rather than e
 
 `modelOverrides` reshapes individual installed-catalog models without that cost: each key is a catalog model id, each value the same fields a `models` entry takes with the id living in the key, and the rest of the catalog keeps serving untouched — "correct one model, keep the other thirty-seven" as a three-line edit. An override becomes that catalog entry's configuration, so capacities, efforts, and compat resolve through the same path with the same diagnostics and the same request-default semantics as a `models` entry. Overrides are only meaningful on a catalog route serving its catalog: one set beside a `models` list (which already replaces the catalog), on a hand-declared route (whose models are fully spelled in `models`), or naming a model the catalog does not describe is refused rather than skipped, because a silently unchanged model is a typo someone would otherwise hunt for.
 
+### Harness-builtin providers
+
+The harness declares catalog entries pi-ai does not ship, served exactly like pi-ai's own: they join `catalogProviderIds()` (the configurable-provider directory and the Models page), `catalogModels()` serves their models as route defaults, and `buildProvider` reuses their provider. `src/builtin.ts` currently ships `mimo` — Xiaomi MiMo-V2.5, the vision model the desktop/VSCode/web clients attach images to — with `mimo-v2.5` (text + image) and `mimo-v2.5-pro` (text-only) on `https://api.xiaomimimo.com/v1`, so a profile naming only the credential serves the whole route:
+
+```yaml
+providers:
+  mimo:
+    apiKeyEnv: MIMO_API_KEY
+```
+
+MiMo answers DeepSeek-style reasoning wire (`reasoning_content`), so the builtin models carry `compat.thinkingFormat: deepseek`; their `thinkingLevelMap` spells every pi-ai level with a value the endpoint accepts (`minimal` is refused with 400, so it maps to `low`), and the no-effort default sends `thinking: { type: "disabled" }` — the verified fast path, since MiMo otherwise thinks by default.
+
 ### Per-model reasoning efforts
 
 `reasoningEfforts` declares a model's selectable thinking levels: each key is a level selectors offer, its value the spelling dispatch sends on the wire, so `high: high` passes the canonical name through while `max: ultra` renames it for a gateway with its own vocabulary. Keys come from pi-ai's level set (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`); a level not declared is not offered. Omitting the field keeps the installed catalog entry's capability (a hand-declared model has none and does not reason); `false` declares a non-reasoning model, which is how a profile strips reasoning from a catalog model its gateway cannot serve; an empty declaration is refused rather than guessing between those two meanings.

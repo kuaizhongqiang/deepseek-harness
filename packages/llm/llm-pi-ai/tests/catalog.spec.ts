@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { AttachmentId, AttachmentStore } from '@deepseek-ai/dsh-attachment'
+import type { ImageAttachmentLimits, ImageAttachmentRef, StoredImageAttachment } from '@deepseek-ai/dsh-attachment'
 import LlmRuntime, { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
@@ -12,6 +14,7 @@ import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { createModels, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type { Api, Model, OpenAICompletionsCompat, Provider } from '@earendil-works/pi-ai'
+import { catalogModels, catalogProviderIds } from '../src/catalog.ts'
 import { resolveProfiles } from '../src/config.ts'
 import { buildProvider, supportedProtocols } from '../src/provider.ts'
 import { assemble } from './assemble.ts'
@@ -395,6 +398,124 @@ describe('hand-declared providers', () => {
     })
     expect(resolved.get('acme-gateway')?.displayName).toBe('acme-gateway')
     expect(() => resolveProfiles({ 'acme-gateway': { displayName: '' } })).toThrow(/empty displayName/)
+  })
+})
+
+describe('harness-builtin providers', () => {
+  it('ships mimo as a catalog route with the vision model and its text sibling', () => {
+    expect(catalogProviderIds()).toContain('mimo')
+    const models = catalogModels('mimo')
+    expect([...models.keys()].sort()).toEqual(['mimo-v2.5', 'mimo-v2.5-pro'])
+    const vision = models.get('mimo-v2.5')
+    expect(vision).toMatchObject({
+      api: 'openai-completions',
+      provider: 'mimo',
+      baseUrl: 'https://api.xiaomimimo.com/v1',
+      input: ['text', 'image'],
+      reasoning: true,
+      contextWindow: 1_000_000,
+      maxTokens: 128_000,
+      compat: { thinkingFormat: 'deepseek', supportsReasoningEffort: true },
+    })
+    // The endpoint refuses `minimal` with 400 (verified 2026-08), so every
+    // pi-ai level maps to a wire spelling MiMo accepts.
+    expect(vision?.thinkingLevelMap).toEqual({
+      off: 'low', minimal: 'low', low: 'low', medium: 'medium', high: 'high', xhigh: 'high', max: 'high',
+    })
+    expect(models.get('mimo-v2.5-pro')?.input).toEqual(['text'])
+    // A route neither family ships has no catalog models.
+    expect(catalogModels('mimo-no-such-route').size).toBe(0)
+  })
+
+  it('resolves a credential-only mimo profile from the builtin catalog', () => {
+    const resolved = resolveProfiles({ mimo: { apiKeyEnv: KEY_ENV } })
+    const profile = resolved.get('mimo')
+    if (profile === undefined) throw new Error('the mimo route resolved no profile')
+    expect(profile.displayName).toBe('mimo')
+    expect(profile.piProvider.id).toBe('mimo')
+    expect(profile.piProvider.getModels().map(model => model.id).sort()).toEqual(['mimo-v2.5', 'mimo-v2.5-pro'])
+    // Materialization spreads the builtin entry, so its vision and reasoning
+    // facts survive a profile that names none of them.
+    const [vision] = profile.piProvider.getModels()
+    expect(vision?.input).toEqual(['text', 'image'])
+    expect(vision?.compat).toEqual({ thinkingFormat: 'deepseek', supportsReasoningEffort: true })
+    expect(vision?.reasoning).toBe(true)
+  })
+
+  it('appears in the configurable-provider directory as a catalog route', async () => {
+    const ctx = await harness({})
+    const entry = ctx.llm.listConfigurableProviders().find(candidate => candidate.provider === 'mimo')
+    expect(entry).toEqual({
+      provider: 'mimo',
+      displayName: 'mimo',
+      settingsNs: 'llm-pi-ai',
+      settingsPath: ['providers', 'mimo'],
+      declared: false,
+    })
+  })
+
+  it('streams a real request through the reused harness provider', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    // The builtin supplies api/models/credentials; the endpoint override keeps
+    // the request on the local stand-in.
+    const ctx = await harness({ providers: { mimo: { apiKeyEnv: KEY_ENV, baseURL: `${server.url}/v1` } } })
+
+    const result = await assemble(ctx, {
+      provider: 'mimo',
+      model: 'mimo-v2.5',
+      messages: [createUserMessage({
+        content: [{ type: 'text', text: 'hi' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      })],
+    })
+
+    expect(result.finish).toEqual({ kind: 'stop' })
+    expect(server.paths).toEqual(['/v1/chat/completions'])
+    expect(server.headers[0]?.authorization).toBe('Bearer test-key')
+  })
+
+  it('sends an attached image as an image_url data URI on the wire', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = await harness({ providers: { mimo: { apiKeyEnv: KEY_ENV, baseURL: `${server.url}/v1` } } })
+    const data = new Uint8Array([0x89, 0x50, 0x4e, 0x47])
+    const ref: ImageAttachmentRef = {
+      attachmentId: AttachmentId(`sha256:${'b'.repeat(64)}`),
+      mediaType: 'image/png',
+      bytes: data.byteLength,
+      width: 1,
+      height: 1,
+    }
+    class WireAttachmentStore extends AttachmentStore {
+      readonly imageLimits: ImageAttachmentLimits = {
+        maxImageBytes: 4, maxImagesPerMessage: 1, maxMessageImageBytes: 4, maxImagePixels: 1, mediaTypes: ['image/png'],
+      }
+      validateImage(): Promise<void> { return Promise.reject(new Error('read-only fixture')) }
+      saveImage(): Promise<ImageAttachmentRef> { return Promise.reject(new Error('read-only fixture')) }
+      readImage(image: ImageAttachmentRef): Promise<StoredImageAttachment> {
+        return Promise.resolve({ ref: image, data })
+      }
+    }
+    await ctx.plugin(WireAttachmentStore)
+
+    const result = await assemble(ctx, {
+      provider: 'mimo',
+      model: 'mimo-v2.5',
+      messages: [createUserMessage({
+        content: [
+          { type: 'text', text: 'what is this' },
+          { type: 'image', attachment: ref },
+        ],
+        source: { kind: 'plugin', plugin: 'test' },
+      })],
+    })
+
+    expect(result.finish).toEqual({ kind: 'stop' })
+    const body = server.requests[0] as { messages: { content: unknown[] }[] }
+    const content = body.messages[0]?.content as unknown[]
+    expect(content).toContainEqual({
+      type: 'image_url',
+      image_url: { url: 'data:image/png;base64,iVBORw==' },
+    })
   })
 })
 

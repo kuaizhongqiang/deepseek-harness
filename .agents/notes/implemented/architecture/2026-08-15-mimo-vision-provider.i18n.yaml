@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-15-mimo-vision-provider.md
+2026-08-15-mimo-vision-provider.md: 13945d647ce808a6a29d02ba31b4c1db4f21cb42
+2026-08-15-mimo-vision-provider.zh.md: 598f8150e3b199dc71dfd06d757cdd57a94bf045
