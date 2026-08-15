@@ -10,6 +10,7 @@ import type {
 
 export { AttachmentId } from './brand.ts'
 export { AttachmentError } from './error.ts'
+export { imageRefHint, parseImageRefHint } from './hint.ts'
 export type {
   AttachmentId as AttachmentIdType,
   ImageAttachmentLimits,

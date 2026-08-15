@@ -246,6 +246,7 @@
     { "path": "./packages/bundle/server-app" },
     { "path": "./packages/server/server-single-instance" },
     { "path": "./packages/server/server-launcher" },
+    { "path": "./packages/vision/tool-describe-image" },
     { "path": "./packages/boot/app-boot" },
     { "path": "./packages/boot/cmdline" },
     { "path": "./packages/sdk/server" },
